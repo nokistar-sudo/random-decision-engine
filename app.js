@@ -6,84 +6,44 @@ function escapeHTML(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','
 function panel(title,sub,content){$('#workspace').innerHTML='<div class="tool-panel"><div class="panel-head"><div><div class="eyebrow">RANDOM TOOL</div><h2>'+title+'</h2><p>'+sub+'</p></div><button class="close-panel" id="closePanel">✕</button></div>'+content+'</div>';$('#closePanel').onclick=()=>{$('#workspace').innerHTML='<div class="workspace-empty"><span class="empty-orb">✳</span><h2>Dein Zufallsmoment wartet.</h2><p>Wähle oben ein Tool und leg los.</p></div>';$$('.tool-card').forEach(x=>x.classList.remove('active'))};$('#workspace').scrollIntoView({behavior:'smooth',block:'center'})}
 function openTool(name){$$('.tool-card').forEach(x=>x.classList.toggle('active',x.dataset.tool===name));if(name==='wheel')wheelTool();if(name==='yesno')yesNoTool();if(name==='generator')generatorTool();if(name==='challenge')challengeTool();if(name==='thisthat')thisThatTool()}
 function wheelTool(){
-  panel('Random Wheel','Füge deine Möglichkeiten ein und lege die Wahrscheinlichkeit jeder Option direkt in Prozent fest.',`<div class="wheel-layout"><div class="wheel-wrap"><div class="wheel-pointer"></div><div class="wheel" id="wheel"></div></div><div><label class="field-label" for="wheelOptions">DEINE OPTIONEN · EINE PRO ZEILE</label><textarea class="text-area" id="wheelOptions">Pizza
+  panel('Random Wheel','Füge deine Möglichkeiten ein und lass den Zufall entscheiden.',`<div class="wheel-layout"><div class="wheel-wrap"><div class="wheel-pointer"></div><div class="wheel" id="wheel"></div></div><div><label class="field-label" for="wheelOptions">DEINE OPTIONEN · EINE PRO ZEILE</label><textarea class="text-area" id="wheelOptions">Pizza
 Burger
 Sushi
-Pasta</textarea><div class="probability-box"><div class="probability-head"><strong>Wahrscheinlichkeiten</strong><span class="tool-number">IN PROZENT</span></div><p class="probability-help">Trage für jede Option eine Zahl ein. Zusammen dürfen die Werte höchstens 100 % ergeben.</p><div id="probabilityRows"></div><div class="probability-total"><span>Gesamt</span><strong id="probabilityTotal">100 %</strong></div><div class="probability-status" id="probabilityStatus">Alle 100 % sind verteilt.</div></div><div class="actions"><button class="action-btn" id="spin">Rad drehen</button><button class="secondary-btn" id="shuffleWheel">Beispiele laden</button></div><div id="wheelResult"></div></div></div>`);
+Pasta</textarea><div class="actions"><button class="action-btn" id="spin">Rad drehen</button><button class="secondary-btn" id="shuffleWheel">Beispiele laden</button></div><div id="wheelResult"></div></div></div>`);
   const colors=['#a78bfa','#67c9d8','#d68bd9','#8271bd','#bd9af5','#65b8a9'];
   let items=$('#wheelOptions').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
-  let weights=items.map(()=>Math.floor(100/items.length));
-  weights[weights.length-1]+=100-weights.reduce((a,b)=>a+b,0);
   let wheelBusy=false;
   let rotation=0;
   const mod=(n,m)=>((n%m)+m)%m;
-  function total(){return weights.reduce((a,b)=>a+b,0)}
   function paintWheel(){
-    let cursor=0;
-    const stops=[];
-    weights.forEach((weight,i)=>{
-      if(weight<=0)return;
-      const from=cursor;cursor+=weight*3.6;
-      stops.push(colors[i%colors.length]+' '+from+'deg '+cursor+'deg');
-    });
-    $('#wheel').style.background=stops.length?'conic-gradient('+stops.join(',')+')':'conic-gradient(#282238 0deg 360deg)';
+    const count=items.length;
+    if(!count){$('#wheel').style.background='#282238';return}
+    const stops=items.map((_,i)=>colors[i%colors.length]+' '+(i*360/count)+'deg '+((i+1)*360/count)+'deg');
+    $('#wheel').style.background='conic-gradient('+stops.join(',')+')';
   }
-  function updateSummary(){
-    const sum=total(),remaining=100-sum;
-    $('#probabilityTotal').textContent=sum+' %';
-    $('#probabilityTotal').className=sum===100?'complete':'incomplete';
-    $('#probabilityStatus').textContent=sum===100?'Alle 100 % sind verteilt.':remaining+' % noch zu verteilen.';
-    $('#spin').disabled=sum!==100||items.length<2||weights.every(x=>x===0)||wheelBusy;
-    $('#probabilityRows').querySelectorAll('input').forEach((input,i)=>{
-      const otherTotal=sum-weights[i];
-      input.max=Math.max(0,100-otherTotal);
-    });
-  }
-  function renderWeights(){
-    $('#probabilityRows').innerHTML=items.map((item,i)=>
-      '<label class="probability-row"><span class="probability-name" title="'+escapeHTML(item)+'">'+escapeHTML(item)+'</span><input class="probability-number" type="number" inputmode="numeric" min="0" max="100" step="1" value="'+weights[i]+'" data-index="'+i+'" aria-label="Wahrscheinlichkeit für '+escapeHTML(item)+' in Prozent"><span class="probability-unit">%</span></label>'
-    ).join('');
-    $('#probabilityRows').querySelectorAll('input').forEach(input=>{
-      input.addEventListener('change',()=>{
-        const i=Number(input.dataset.index);
-        const otherTotal=total()-weights[i];
-        let value=Number(input.value);
-        if(!Number.isFinite(value))value=0;
-        value=Math.max(0,Math.min(Math.round(value),100-otherTotal));
-        weights[i]=value;input.value=String(value);
-        updateSummary();paintWheel();
-      });
-    });
-    updateSummary();paintWheel();
+  function updateButton(){
+    $('#spin').disabled=items.length<2||wheelBusy;
   }
   function readOptions(){
-    const next=$('#wheelOptions').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
-    items=next;
-    if(items.length<2){
-      weights=items.map(()=>0);
-      $('#probabilityRows').innerHTML='<p class="probability-help">Bitte mindestens zwei Optionen eingeben.</p>';
-      $('#probabilityTotal').textContent='—';$('#probabilityStatus').textContent='';$('#spin').disabled=true;
-      paintWheel();return;
-    }
-    weights=items.map(()=>Math.floor(100/items.length));
-    weights[weights.length-1]+=100-weights.reduce((a,b)=>a+b,0);
-    rotation=0;$('#wheel').style.transition='none';$('#wheel').style.transform='rotate(0deg)';
-    $('#wheelResult').innerHTML='';renderWeights();
+    items=$('#wheelOptions').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
+    rotation=0;
+    const wheel=$('#wheel');
+    wheel.style.transition='none';
+    wheel.style.transform='rotate(0deg)';
+    $('#wheelResult').innerHTML='';
+    paintWheel();
+    updateButton();
   }
-  $('#wheelOptions').addEventListener('change',readOptions);
+  $('#wheelOptions').addEventListener('input',readOptions);
   $('#shuffleWheel').onclick=()=>{$('#wheelOptions').value='Kaffee\nTee\nWasser\nSaft';readOptions()};
   $('#spin').onclick=()=>{
-    if(total()!==100||items.length<2||wheelBusy)return;
-    const ticket=secureIndex(100);
-    let cumulative=0,idx=-1;
-    for(let i=0;i<weights.length;i++){cumulative+=weights[i];if(ticket<cumulative){idx=i;break}}
-    if(idx<0||weights[idx]===0)return;
-    const startAngle=weights.slice(0,idx).reduce((a,b)=>a+b,0)*3.6;
-    const segmentAngle=weights[idx]*3.6;
-    const targetAngle=mod(360-(startAngle+segmentAngle/2),360);
+    if(items.length<2||wheelBusy)return;
+    const idx=secureIndex(items.length);
+    const segmentAngle=360/items.length;
+    const targetAngle=mod(360-(idx*segmentAngle+segmentAngle/2),360);
     const extra=mod(targetAngle-mod(rotation,360),360);
     const target=rotation+360*5+extra;
-    wheelBusy=true;updateSummary();
+    wheelBusy=true;updateButton();
     const wheel=$('#wheel');
     wheel.style.transition='none';
     wheel.style.transform='rotate('+rotation+'deg)';
@@ -92,17 +52,18 @@ Pasta</textarea><div class="probability-box"><div class="probability-head"><stro
       wheel.style.transform='rotate('+target+'deg)';
     }));
     rotation=target;
+    let finished=false;
     const finish=event=>{
-      if(event&&event.target!==wheel)return;
+      if(finished||(event&&event.target!==wheel))return;
+      finished=true;
       wheel.removeEventListener('transitionend',finish);
-      if(!wheelBusy)return;
-      $('#wheelResult').innerHTML=resultHTML(items[idx]+' · '+weights[idx]+' %');
-      wheelBusy=false;updateSummary();
+      $('#wheelResult').innerHTML=resultHTML(items[idx]);
+      wheelBusy=false;updateButton();
     };
     wheel.addEventListener('transitionend',finish);
     window.setTimeout(()=>finish(),3900);
   };
-  renderWeights();
+  paintWheel();updateButton();
 }
 function yesNoTool(){panel('Yes or No','Denk an deine Frage. RANDOM gibt dir eine zufällige Antwort.',`<label class="field-label" for="question">DEINE FRAGE (OPTIONAL)</label><input class="text-input" id="question" placeholder="Soll ich es machen?"><div class="actions"><button class="action-btn" id="ask">Entscheiden</button></div><div id="yesResult"></div>`);$('#ask').onclick=()=>{$('#yesResult').innerHTML=resultHTML(pick(['YES','NO']), 'DIE ANTWORT')}}
 function generatorTool(){panel('Random Generator','Wähle eine Kategorie und lass etwas zufällig generieren.',`<label class="field-label" for="genType">KATEGORIE</label><select class="select-input" id="genType"><option value="number">Zufallszahl</option><option value="color">Farbe</option><option value="letter">Buchstabe</option><option value="coin">Münzwurf</option><option value="team">Team (Rot / Blau)</option></select><div id="numberFields"><label class="field-label">VON</label><input class="number-input" id="min" type="number" value="1"><label class="field-label">BIS</label><input class="number-input" id="max" type="number" value="100"></div><div class="actions"><button class="action-btn" id="generate">Generieren</button></div><div id="genResult"></div>`);$('#genType').onchange=()=>$('#numberFields').style.display=$('#genType').value==='number'?'block':'none';$('#generate').onclick=()=>{let v;const t=$('#genType').value;if(t==='number'){let a=Number($('#min').value),b=Number($('#max').value);if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||b<a||b-a>1000000000){$('#genResult').innerHTML=resultHTML('Bitte gültigen Bereich eingeben','HINWEIS');return}v=a+secureIndex(b-a+1)}if(t==='color')v=pick(['Violett','#8B5CF6','Türkis','#2DD4BF','Koralle','#FB7185','Indigo','#6366F1','Gold','#FBBF24']);if(t==='letter')v=pick('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''));if(t==='coin')v=pick(['Kopf','Zahl']);if(t==='team')v=pick(['Team Rot','Team Blau']);$('#genResult').innerHTML=resultHTML(v)}}
