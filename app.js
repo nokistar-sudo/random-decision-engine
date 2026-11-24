@@ -20,8 +20,7 @@ function wheelTool(){
   function renderWeights(){
     const sum=total();
     $('#probabilityRows').innerHTML=items.map((item,i)=>{
-      const max=Math.max(0,100-(sum-weights[i]));
-      return '<div class="probability-row"><span class="probability-name" title="'+escapeHTML(item)+'">'+escapeHTML(item)+'</span><input class="probability-slider" type="range" min="0" max="'+max+'" step="1" value="'+weights[i]+'" data-index="'+i+'" aria-label="Wahrscheinlichkeit für '+escapeHTML(item)+'"><span class="probability-value">'+weights[i]+' %</span></div>';
+      return '<div class="probability-row"><span class="probability-name" title="'+escapeHTML(item)+'">'+escapeHTML(item)+'</span><input class="probability-slider" type="range" min="0" max="100" step="1" value="'+weights[i]+'" data-index="'+i+'" aria-label="Wahrscheinlichkeit für '+escapeHTML(item)+'"><span class="probability-value">'+weights[i]+' %</span></div>';
     }).join('');
     $('#probabilityTotal').textContent=sum+' %';
     $('#probabilityTotal').className=sum===100?'complete':'incomplete';
@@ -29,8 +28,21 @@ function wheelTool(){
     $('#spin').disabled=sum!==100||items.length<2||weights.every(x=>x===0)||wheelBusy;
     $('#probabilityRows').querySelectorAll('input').forEach(input=>input.addEventListener('input',()=>{
       const i=Number(input.dataset.index);
-      const otherTotal=sum-weights[i];
-      weights[i]=Math.min(Number(input.value),100-otherTotal);
+      const nextValue=Number(input.value);
+      const others=weights.map((value,index)=>index===i?0:value);
+      const otherIndexes=weights.map((value,index)=>index).filter(index=>index!==i);
+      const available=100-nextValue;
+      const oldOtherTotal=others.reduce((a,b)=>a+b,0);
+      weights[i]=nextValue;
+      if(otherIndexes.length){
+        let assigned=0;
+        otherIndexes.forEach((index,j)=>{
+          const share=j===otherIndexes.length-1
+            ? available-assigned
+            : (oldOtherTotal>0?Math.floor(available*others[index]/oldOtherTotal):Math.floor(available/otherIndexes.length));
+          weights[index]=share;assigned+=share;
+        });
+      }
       renderWeights();paintWheel();
     }));
     paintWheel();
