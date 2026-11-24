@@ -11,7 +11,7 @@ Burger
 Sushi
 Pasta</textarea><div class="probability-box"><div class="probability-head"><strong>Wahrscheinlichkeiten</strong><span class="tool-number">IN PROZENT</span></div><p class="probability-help">Trage für jede Option eine Zahl ein. Zusammen dürfen die Werte höchstens 100 % ergeben.</p><div id="probabilityRows"></div><div class="probability-total"><span>Gesamt</span><strong id="probabilityTotal">100 %</strong></div><div class="probability-status" id="probabilityStatus">Alle 100 % sind verteilt.</div></div><div class="actions"><button class="action-btn" id="spin">Rad drehen</button><button class="secondary-btn" id="shuffleWheel">Beispiele laden</button></div><div id="wheelResult"></div></div></div>`);
   const colors=['#a78bfa','#67c9d8','#d68bd9','#8271bd','#bd9af5','#65b8a9'];
-  let items=$('#wheelOptions').value.split(/\\n/).map(x=>x.trim()).filter(Boolean);
+  let items=$('#wheelOptions').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
   let weights=items.map(()=>Math.floor(100/items.length));
   weights[weights.length-1]+=100-weights.reduce((a,b)=>a+b,0);
   let wheelBusy=false;
@@ -57,7 +57,7 @@ Pasta</textarea><div class="probability-box"><div class="probability-head"><stro
     updateSummary();paintWheel();
   }
   function readOptions(){
-    const next=$('#wheelOptions').value.split(/\\n/).map(x=>x.trim()).filter(Boolean);
+    const next=$('#wheelOptions').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
     items=next;
     if(items.length<2){
       weights=items.map(()=>0);
@@ -71,7 +71,7 @@ Pasta</textarea><div class="probability-box"><div class="probability-head"><stro
     $('#wheelResult').innerHTML='';renderWeights();
   }
   $('#wheelOptions').addEventListener('change',readOptions);
-  $('#shuffleWheel').onclick=()=>{$('#wheelOptions').value='Kaffee\\nTee\\nWasser\\nSaft';readOptions()};
+  $('#shuffleWheel').onclick=()=>{$('#wheelOptions').value='Kaffee\nTee\nWasser\nSaft';readOptions()};
   $('#spin').onclick=()=>{
     if(total()!==100||items.length<2||wheelBusy)return;
     const ticket=secureIndex(100);
