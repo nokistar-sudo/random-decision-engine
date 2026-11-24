@@ -14,48 +14,60 @@ function wheelTool(){
   let wheelBusy=false;
   function total(){return weights.reduce((a,b)=>a+b,0)}
   function paintWheel(){
-    let cursor=0;const stops=items.map((item,i)=>{const start=cursor;cursor+=weights[i]*3.6;return colors[i%colors.length]+' '+start+'deg '+cursor+'deg'});
+    let cursor=0;
+    const stops=weights.map((weight,i)=>{const from=cursor;cursor+=weight*3.6;return colors[i%colors.length]+' '+from+'deg '+cursor+'deg'});
     $('#wheel').style.background='conic-gradient('+stops.join(',')+')';
   }
-  function renderWeights(){
+  function updateSummary(){
     const sum=total();
-    $('#probabilityRows').innerHTML=items.map((item,i)=>{
-      return '<div class="probability-row"><span class="probability-name" title="'+escapeHTML(item)+'">'+escapeHTML(item)+'</span><input class="probability-slider" type="range" min="0" max="100" step="1" value="'+weights[i]+'" data-index="'+i+'" aria-label="Wahrscheinlichkeit für '+escapeHTML(item)+'"><span class="probability-value">'+weights[i]+' %</span></div>';
-    }).join('');
     $('#probabilityTotal').textContent=sum+' %';
     $('#probabilityTotal').className=sum===100?'complete':'incomplete';
     $('#probabilityStatus').textContent=sum===100?'Alle 100 % sind verteilt.':(100-sum)+' % noch zu verteilen.';
     $('#spin').disabled=sum!==100||items.length<2||weights.every(x=>x===0)||wheelBusy;
+  }
+  function renderWeights(){
+    $('#probabilityRows').innerHTML=items.map((item,i)=>
+      '<div class="probability-row"><span class="probability-name" title="'+escapeHTML(item)+'">'+escapeHTML(item)+'</span><input class="probability-slider" type="range" min="0" max="100" step="1" value="'+weights[i]+'" data-index="'+i+'" aria-label="Wahrscheinlichkeit für '+escapeHTML(item)+'"><span class="probability-value">'+weights[i]+' %</span></div>'
+    ).join('');
     $('#probabilityRows').querySelectorAll('input').forEach(input=>input.addEventListener('input',()=>{
-      const i=Number(input.dataset.index);
-      const nextValue=Number(input.value);
-      const others=weights.map((value,index)=>index===i?0:value);
-      const otherIndexes=weights.map((value,index)=>index).filter(index=>index!==i);
-      const available=100-nextValue;
-      const oldOtherTotal=others.reduce((a,b)=>a+b,0);
-      weights[i]=nextValue;
-      if(otherIndexes.length){
-        let assigned=0;
-        otherIndexes.forEach((index,j)=>{
-          const share=j===otherIndexes.length-1
-            ? available-assigned
-            : (oldOtherTotal>0?Math.floor(available*others[index]/oldOtherTotal):Math.floor(available/otherIndexes.length));
-          weights[index]=share;assigned+=share;
-        });
-      }
-      renderWeights();paintWheel();
+      const i=Number(input.dataset.index),next=Number(input.value);
+      const otherIndexes=weights.map((_,index)=>index).filter(index=>index!==i);
+      const oldOtherTotal=otherIndexes.reduce((sum,index)=>sum+weights[index],0);
+      const available=100-next;
+      const previous=weights.slice();
+      weights[i]=next;
+      let assigned=0;
+      otherIndexes.forEach((index,j)=>{
+        const share=j===otherIndexes.length-1?available-assigned:
+          (oldOtherTotal>0?Math.floor(available*previous[index]/oldOtherTotal):Math.floor(available/otherIndexes.length));
+        weights[index]=share;assigned+=share;
+      });
+      // Update existing controls in place: do not rebuild the DOM while dragging.
+      $('#probabilityRows').querySelectorAll('input').forEach((slider,index)=>{
+        slider.value=weights[index];
+        slider.nextElementSibling.textContent=weights[index]+' %';
+      });
+      updateSummary();paintWheel();
     }));
-    paintWheel();
+    updateSummary();paintWheel();
   }
   function readOptions(){
     const next=$('#wheelOptions').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
-    if(next.length<2){$('#probabilityRows').innerHTML='<p class="probability-help">Bitte mindestens zwei Optionen eingeben.</p>';$('#probabilityTotal').textContent='—';$('#probabilityStatus').textContent='';$('#spin').disabled=true;return}
-    items=next;
-    weights=items.map(()=>Math.floor(100/items.length));
+    if(next.length<2){
+      items=next;weights=[];
+      $('#probabilityRows').innerHTML='<p class="probability-help">Bitte mindestens zwei Optionen eingeben.</p>';
+      $('#probabilityTotal').textContent='—';$('#probabilityStatus').textContent='';
+      $('#spin').disabled=true;return;
+    }
+    items=next;weights=items.map(()=>Math.floor(100/items.length));
     weights[weights.length-1]+=100-weights.reduce((a,b)=>a+b,0);
-    $('#wheelResult').innerHTML='';
-    renderWeights();
+    $('#wheelResult').innerHTML='';renderWeights();
   }
+  $('#wheelOptions').addEventListener('input',()=>{
+    // Keep typing responsive; rebuild option controls only after the text is edited.
+    $('#spin').disabled=true;
+    $('#probabilityStatus').textContent='Übernehme Optionen nach der Eingabe …';
+  });
   $('#wheelOptions').addEventListener('change',readOptions);
   $('#shuffleWheel').onclick=()=>{$('#wheelOptions').value='Kaffee\nTee\nWasser\nSaft';readOptions()};
   $('#spin').onclick=()=>{
@@ -63,13 +75,24 @@ function wheelTool(){
     const ticket=secureIndex(100);
     let cumulative=0,idx=-1;
     for(let i=0;i<weights.length;i++){cumulative+=weights[i];if(ticket<cumulative){idx=i;break}}
-    if(idx<0)return;
+    if(idx<0||weights[idx]===0)return;
     const startAngle=weights.slice(0,idx).reduce((a,b)=>a+b,0)*3.6;
     const segmentAngle=weights[idx]*3.6;
-    const target=360*5+(360-(startAngle+segmentAngle/2));
-    wheelRotation+=target;wheelBusy=true;renderWeights();
-    $('#wheel').style.transform='rotate('+wheelRotation+'deg)';
-    setTimeout(()=>{$('#wheelResult').innerHTML=resultHTML(items[idx]+' · '+weights[idx]+' %');wheelBusy=false;renderWeights()},3700);
+    const current=((wheelRotation%360)+360)%360;
+    const desired=((360-(startAngle+segmentAngle/2))%360+360)%360;
+    const extra=(desired-current+360)%360;
+    wheelRotation+=360*5+extra;
+    wheelBusy=true;updateSummary();
+    const wheel=$('#wheel');
+    wheel.style.transition='none';
+    wheel.style.transform='rotate('+(((wheelRotation-360*5-extra)%360)+360)%360+'deg)';
+    void wheel.offsetWidth;
+    wheel.style.transition='transform 3.6s cubic-bezier(.12,.75,.12,1)';
+    requestAnimationFrame(()=>{wheel.style.transform='rotate('+wheelRotation+'deg)'});
+    window.setTimeout(()=>{
+      $('#wheelResult').innerHTML=resultHTML(items[idx]+' · '+weights[idx]+' %');
+      wheelBusy=false;updateSummary();
+    },3700);
   };
   renderWeights();
 }
